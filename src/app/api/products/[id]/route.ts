@@ -35,34 +35,28 @@ export async function PATCH(
 ) {
   try {
     const { id } = await context.params;
-
-    console.log("Product ID:", id);
-
     const body = await request.json();
-    console.log("Incoming body:", body);
 
-    const {
-      name,
-      description,
-      price,
-      stock_quantity,
-      category,
-      low_stock_threshold,
-      image_url,
-    } = body;
+    // ✅ Build update object with only fields that were sent
+    const updateData: Record<string, any> = {
+      updated_at: new Date().toISOString(),
+    };
+
+    if (body.name !== undefined) updateData.name = body.name;
+    if (body.description !== undefined)
+      updateData.description = body.description || null;
+    if (body.price !== undefined) updateData.price = Number(body.price);
+    if (body.stock_quantity !== undefined)
+      updateData.stock_quantity = Number(body.stock_quantity);
+    if (body.category !== undefined) updateData.category = body.category;
+    if (body.low_stock_threshold !== undefined)
+      updateData.low_stock_threshold = Number(body.low_stock_threshold);
+    if (body.image_url !== undefined)
+      updateData.image_url = body.image_url || null;
 
     const { data, error } = await supabase
       .from("products")
-      .update({
-        name,
-        description: description || null,
-        price: Number(price),
-        stock_quantity: Number(stock_quantity),
-        category,
-        low_stock_threshold: Number(low_stock_threshold),
-        image_url: image_url || null,
-        updated_at: new Date().toISOString(),
-      })
+      .update(updateData)
       .eq("id", id)
       .select()
       .single();
@@ -75,7 +69,6 @@ export async function PATCH(
     return NextResponse.json(data);
   } catch (error) {
     console.error("Failed to update product:", error);
-
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Update failed" },
       { status: 500 },
