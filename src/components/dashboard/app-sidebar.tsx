@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-
+import { LogoutButton } from "../logout-button";
 import {
   Sidebar,
   SidebarContent,
@@ -10,6 +10,7 @@ import {
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
+  SidebarFooter,
 } from "@/components/ui/sidebar";
 
 import {
@@ -63,6 +64,9 @@ export function AppSidebar() {
           })}
         </SidebarMenu>
       </SidebarContent>
+      <SidebarFooter>
+        <LogoutButton />
+      </SidebarFooter>
     </Sidebar>
   );
 }

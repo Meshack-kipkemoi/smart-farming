@@ -1,11 +1,8 @@
 // app/api/offers/[id]/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createClient } from "@/lib/supabase/server";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!;
 
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // Allowed fields that can be updated (security whitelist)
 const ALLOWED_UPDATE_FIELDS = [
@@ -21,6 +18,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
+    const supabase = await createClient();
     const { id } = await params;
 
     const { data: offer, error } = await supabase
@@ -60,6 +58,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
+    const supabase = await createClient();
     const { id } = await params;
     const body = await request.json();
 
@@ -137,6 +136,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
+    const supabase = await createClient();
     const { id } = await params;
 
     const { data: existing, error: fetchError } = await supabase

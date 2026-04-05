@@ -1,17 +1,52 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardContent,
-  CardFooter,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Edit2, Trash2, Plus, ToggleLeft, X, Loader2 } from "lucide-react";
-import { toast } from "sonner"; // ✅ Sonner import
+import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import {
+  Plus,
+  Loader2,
+  Edit2,
+  Trash2,
+  Tag,
+  ToggleLeft,
+  ToggleRight,
+  Percent,
+  CalendarRange,
+  Sparkles,
+} from "lucide-react";
+import { toast } from "sonner";
 
 interface Product {
   id: string;
@@ -29,29 +64,221 @@ interface Offer {
   active: boolean;
 }
 
+const EMPTY_CREATE = {
+  product_id: "",
+  discount_percentage: "",
+  valid_from: "",
+  valid_to: "",
+};
+
+const EMPTY_EDIT = {
+  product_id: "",
+  discount_percentage: "",
+  valid_from: "",
+  valid_to: "",
+  active: true,
+};
+
+// ── Stat card ─────────────────────────────────────────────────────────────────
+function StatCard({
+  title,
+  value,
+  sub,
+  icon,
+  accent,
+}: {
+  title: string;
+  value: string;
+  sub?: string;
+  icon: React.ReactNode;
+  accent: string;
+}) {
+  return (
+    <Card className="border-0 shadow-sm">
+      <CardContent className="p-6">
+        <div className="flex items-start justify-between">
+          <div className="space-y-1">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-widest">
+              {title}
+            </p>
+            <p className="text-2xl font-bold text-gray-900 tracking-tight">
+              {value}
+            </p>
+            {sub && <p className="text-xs text-muted-foreground">{sub}</p>}
+          </div>
+          <div className={`p-2.5 rounded-xl ${accent}`}>{icon}</div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ── Offer form (shared for create + edit) ────────────────────────────────────
+function OfferForm({
+  title,
+  form,
+  setForm,
+  products,
+  isSubmitting,
+  showActive,
+  onSubmit,
+  onCancel,
+  submitLabel,
+  accentClass,
+}: {
+  title: string;
+  form: typeof EMPTY_EDIT;
+  setForm: (f: typeof EMPTY_EDIT) => void;
+  products: Product[];
+  isSubmitting: boolean;
+  showActive: boolean;
+  onSubmit: (e: React.FormEvent) => void;
+  onCancel: () => void;
+  submitLabel: string;
+  accentClass: string;
+}) {
+  return (
+    <DialogContent className="sm:max-w-lg">
+      <DialogHeader>
+        <DialogTitle className="text-lg font-semibold">{title}</DialogTitle>
+      </DialogHeader>
+      <form onSubmit={onSubmit} className="space-y-4 pt-2">
+        {/* Product */}
+        <div className="space-y-1.5">
+          <Label>Product *</Label>
+          <Select
+            value={form.product_id}
+            onValueChange={(v) => setForm({ ...form, product_id: v })}
+            disabled={isSubmitting}
+            required
+          >
+            <SelectTrigger className="h-10">
+              <SelectValue placeholder="Select a product" />
+            </SelectTrigger>
+            <SelectContent>
+              {products.map((p) => (
+                <SelectItem key={p.id} value={p.id}>
+                  {p.name} — KSh {p.price.toLocaleString()}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Discount */}
+        <div className="space-y-1.5">
+          <Label>Discount % *</Label>
+          <div className="relative">
+            <Input
+              type="number"
+              value={form.discount_percentage}
+              onChange={(e) =>
+                setForm({ ...form, discount_percentage: e.target.value })
+              }
+              placeholder="e.g. 15"
+              step="0.01"
+              min="0"
+              max="100"
+              required
+              disabled={isSubmitting}
+              className="pr-10"
+            />
+            <Percent
+              size={14}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+            />
+          </div>
+        </div>
+
+        {/* Dates */}
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label>Valid From *</Label>
+            <Input
+              type="datetime-local"
+              value={form.valid_from}
+              onChange={(e) => setForm({ ...form, valid_from: e.target.value })}
+              required
+              disabled={isSubmitting}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Valid To *</Label>
+            <Input
+              type="datetime-local"
+              value={form.valid_to}
+              onChange={(e) => setForm({ ...form, valid_to: e.target.value })}
+              required
+              disabled={isSubmitting}
+            />
+          </div>
+        </div>
+
+        {/* Active toggle — only in edit mode */}
+        {showActive && (
+          <div className="flex items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
+            <Switch
+              id="active-toggle"
+              checked={form.active}
+              onCheckedChange={(v) => setForm({ ...form, active: v })}
+              disabled={isSubmitting}
+            />
+            <Label htmlFor="active-toggle" className="cursor-pointer">
+              Mark as{" "}
+              <span
+                className={
+                  form.active ? "text-green-600 font-semibold" : "text-gray-500"
+                }
+              >
+                {form.active ? "Active" : "Inactive"}
+              </span>
+            </Label>
+          </div>
+        )}
+
+        {/* Actions */}
+        <div className="flex gap-3 pt-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onCancel}
+            className="flex-1 h-11"
+            disabled={isSubmitting}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            className={`flex-1 h-11 ${accentClass}`}
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Processing...
+              </>
+            ) : (
+              submitLabel
+            )}
+          </Button>
+        </div>
+      </form>
+    </DialogContent>
+  );
+}
+
+// ── Main Page ─────────────────────────────────────────────────────────────────
 export default function OffersPage() {
   const [offers, setOffers] = useState<Offer[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [editingOffer, setEditingOffer] = useState<Offer | null>(null);
 
-  const [createForm, setCreateForm] = useState({
-    product_id: "",
-    discount_percentage: "",
-    valid_from: "",
-    valid_to: "",
-  });
-
-  const [editForm, setEditForm] = useState({
-    product_id: "",
-    discount_percentage: "",
-    valid_from: "",
-    valid_to: "",
-    active: true,
-  });
+  const [createForm, setCreateForm] = useState(EMPTY_EDIT);
+  const [editForm, setEditForm] = useState(EMPTY_EDIT);
 
   useEffect(() => {
     fetchOffersAndProducts();
@@ -63,19 +290,17 @@ export default function OffersPage() {
         fetch("/api/offers"),
         fetch("/api/products"),
       ]);
-
       if (offersRes.ok) setOffers((await offersRes.json()).offers || []);
       if (productsRes.ok)
         setProducts((await productsRes.json()).products || []);
-    } catch (error) {
-      console.error("Failed to fetch data:", error);
+    } catch {
       toast.error("Failed to load offers. Please refresh.");
     } finally {
       setIsLoading(false);
     }
   };
 
-  // --- CREATE OFFER ---
+  // CREATE
   const handleAddOffer = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -88,33 +313,23 @@ export default function OffersPage() {
           discount_percentage: parseFloat(createForm.discount_percentage),
         }),
       });
-
-      // ✅ Always parse the response body to get error messages
       const data = await res.json();
-
       if (!res.ok) {
         toast.error(data.error || "Failed to create offer.");
         return;
       }
-
       setOffers([data, ...offers]);
-      setCreateForm({
-        product_id: "",
-        discount_percentage: "",
-        valid_from: "",
-        valid_to: "",
-      });
-      setShowCreateForm(false);
+      setCreateForm(EMPTY_EDIT);
+      setShowCreateDialog(false);
       toast.success("Offer created successfully!");
-    } catch (error) {
-      console.error("Failed to add offer:", error);
+    } catch {
       toast.error("Something went wrong. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // --- EDIT OFFER ---
+  // EDIT click
   const handleEditClick = (offer: Offer) => {
     setEditingOffer(offer);
     setEditForm({
@@ -124,14 +339,13 @@ export default function OffersPage() {
       valid_to: offer.valid_to.slice(0, 16),
       active: offer.active,
     });
-    setShowCreateForm(false);
   };
 
+  // UPDATE
   const handleUpdateOffer = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingOffer) return;
     setIsSubmitting(true);
-
     try {
       const res = await fetch(`/api/offers/${editingOffer.id}`, {
         method: "PATCH",
@@ -141,29 +355,22 @@ export default function OffersPage() {
           discount_percentage: parseFloat(editForm.discount_percentage),
         }),
       });
-
-      // ✅ Always parse the response body to get error messages
       const data = await res.json();
-
       if (!res.ok) {
         toast.error(data.error || "Failed to update offer.");
         return;
       }
-
       setOffers(offers.map((o) => (o.id === data.id ? data : o)));
       setEditingOffer(null);
       toast.success("Offer updated successfully!");
-    } catch (error) {
-      console.error("Failed to update offer:", error);
+    } catch {
       toast.error("Something went wrong. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleCancelEdit = () => setEditingOffer(null);
-
-  // --- TOGGLE ACTIVE ---
+  // TOGGLE
   const handleToggleActive = async (
     offerId: string,
     currentActive: boolean,
@@ -174,41 +381,33 @@ export default function OffersPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ active: !currentActive }),
       });
-
       const data = await res.json();
-
       if (!res.ok) {
         toast.error(data.error || "Failed to toggle offer.");
         return;
       }
-
       setOffers(offers.map((o) => (o.id === offerId ? data : o)));
       toast.success(
         `Offer marked as ${!currentActive ? "active" : "inactive"}.`,
       );
-    } catch (error) {
-      console.error("Failed to toggle offer:", error);
+    } catch {
       toast.error("Something went wrong. Please try again.");
     }
   };
 
-  // --- DELETE ---
+  // DELETE
   const handleDeleteOffer = async (offerId: string) => {
     if (!confirm("Are you sure you want to delete this offer?")) return;
-
     try {
       const res = await fetch(`/api/offers/${offerId}`, { method: "DELETE" });
       const data = await res.json();
-
       if (!res.ok) {
         toast.error(data.error || "Failed to delete offer.");
         return;
       }
-
       setOffers(offers.filter((o) => o.id !== offerId));
       toast.success("Offer deleted successfully.");
-    } catch (error) {
-      console.error("Failed to delete offer:", error);
+    } catch {
       toast.error("Something went wrong. Please try again.");
     }
   };
@@ -218,6 +417,7 @@ export default function OffersPage() {
     (sum, o) => sum + o.discount_percentage,
     0,
   );
+  const expiredOffers = offers.filter((o) => new Date(o.valid_to) < new Date());
 
   if (isLoading) {
     return (
@@ -229,388 +429,294 @@ export default function OffersPage() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-gray-900">Special Offers</h1>
-        {!editingOffer && (
-          <Button
-            onClick={() => setShowCreateForm(!showCreateForm)}
-            className="bg-green-600 hover:bg-green-700"
-          >
-            <Plus size={18} className="mr-2" />
-            {showCreateForm ? "Cancel" : "Create Offer"}
-          </Button>
-        )}
-      </div>
-
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="p-6">
-          <p className="text-gray-600 text-sm font-medium">Total Offers</p>
-          <p className="text-3xl font-bold text-gray-900 mt-2">
-            {offers.length}
-          </p>
-        </Card>
-        <Card className="p-6">
-          <p className="text-gray-600 text-sm font-medium">Active Offers</p>
-          <p className="text-3xl font-bold text-green-600 mt-2">
-            {activeOffers.length}
-          </p>
-        </Card>
-        <Card className="p-6">
-          <p className="text-gray-600 text-sm font-medium">Total Discount %</p>
-          <p className="text-3xl font-bold text-gray-900 mt-2">
-            {discountTotal.toFixed(1)}%
-          </p>
-        </Card>
-      </div>
-
-      {/* --- CREATE FORM --- */}
-      {showCreateForm && (
-        <Card className="border-2 border-green-200 bg-green-50/50">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-lg font-semibold text-green-900">
-              Create New Offer
-            </CardTitle>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setShowCreateForm(false)}
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          </CardHeader>
-          <CardContent>
-            <form
-              onSubmit={handleAddOffer}
-              className="grid grid-cols-1 md:grid-cols-2 gap-4"
-            >
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Product *
-                </label>
-                <select
-                  value={createForm.product_id}
-                  onChange={(e) =>
-                    setCreateForm({ ...createForm, product_id: e.target.value })
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-green-500 outline-none"
-                  required
-                  disabled={isSubmitting}
-                >
-                  <option value="">Select a product</option>
-                  {products.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name} - KSh {p.price.toLocaleString()}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Discount % *
-                </label>
-                <Input
-                  type="number"
-                  value={createForm.discount_percentage}
-                  onChange={(e) =>
-                    setCreateForm({
-                      ...createForm,
-                      discount_percentage: e.target.value,
-                    })
-                  }
-                  placeholder="e.g. 15"
-                  step="0.01"
-                  min="0"
-                  max="100"
-                  required
-                  disabled={isSubmitting}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Valid From *
-                </label>
-                <Input
-                  type="datetime-local"
-                  value={createForm.valid_from}
-                  onChange={(e) =>
-                    setCreateForm({ ...createForm, valid_from: e.target.value })
-                  }
-                  required
-                  disabled={isSubmitting}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Valid To *
-                </label>
-                <Input
-                  type="datetime-local"
-                  value={createForm.valid_to}
-                  onChange={(e) =>
-                    setCreateForm({ ...createForm, valid_to: e.target.value })
-                  }
-                  required
-                  disabled={isSubmitting}
-                />
-              </div>
-              <CardFooter className="col-span-1 md:col-span-2 px-0 pt-2">
-                <Button
-                  type="submit"
-                  className="bg-green-600 hover:bg-green-700"
-                  disabled={isSubmitting}
-                >
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />{" "}
-                      Creating...
-                    </>
-                  ) : (
-                    "Create Offer"
-                  )}
-                </Button>
-              </CardFooter>
-            </form>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* --- EDIT FORM --- */}
-      {editingOffer && (
-        <Card className="border-2 border-blue-200 bg-blue-50/50">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-lg font-semibold text-blue-900">
-              Edit Offer
-            </CardTitle>
-            <Button variant="ghost" size="icon" onClick={handleCancelEdit}>
-              <X className="h-4 w-4" />
-            </Button>
-          </CardHeader>
-          <CardContent>
-            <form
-              onSubmit={handleUpdateOffer}
-              className="grid grid-cols-1 md:grid-cols-2 gap-4"
-            >
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Product *
-                </label>
-                <select
-                  value={editForm.product_id}
-                  onChange={(e) =>
-                    setEditForm({ ...editForm, product_id: e.target.value })
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none"
-                  required
-                  disabled={isSubmitting}
-                >
-                  <option value="">Select a product</option>
-                  {products.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name} - KSh {p.price.toLocaleString()}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Discount % *
-                </label>
-                <Input
-                  type="number"
-                  value={editForm.discount_percentage}
-                  onChange={(e) =>
-                    setEditForm({
-                      ...editForm,
-                      discount_percentage: e.target.value,
-                    })
-                  }
-                  step="0.01"
-                  min="0"
-                  max="100"
-                  required
-                  disabled={isSubmitting}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Valid From *
-                </label>
-                <Input
-                  type="datetime-local"
-                  value={editForm.valid_from}
-                  onChange={(e) =>
-                    setEditForm({ ...editForm, valid_from: e.target.value })
-                  }
-                  required
-                  disabled={isSubmitting}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Valid To *
-                </label>
-                <Input
-                  type="datetime-local"
-                  value={editForm.valid_to}
-                  onChange={(e) =>
-                    setEditForm({ ...editForm, valid_to: e.target.value })
-                  }
-                  required
-                  disabled={isSubmitting}
-                />
-              </div>
-              <div className="flex items-center gap-2 col-span-1 md:col-span-2">
-                <input
-                  type="checkbox"
-                  id="edit-active"
-                  checked={editForm.active}
-                  onChange={(e) =>
-                    setEditForm({ ...editForm, active: e.target.checked })
-                  }
-                  className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                />
-                <label
-                  htmlFor="edit-active"
-                  className="text-sm font-medium text-gray-700"
-                >
-                  Mark as Active
-                </label>
-              </div>
-              <CardFooter className="col-span-1 md:col-span-2 px-0 pt-2">
-                <Button
-                  type="submit"
-                  className="bg-blue-600 hover:bg-blue-700"
-                  disabled={isSubmitting}
-                >
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />{" "}
-                      Saving...
-                    </>
-                  ) : (
-                    "Update Offer"
-                  )}
-                </Button>
-              </CardFooter>
-            </form>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* --- OFFERS TABLE --- */}
-      {offers.length === 0 ? (
-        <Card className="p-8 text-center text-gray-600">
-          <p className="mb-2">No offers created yet.</p>
-          <Button
-            variant="outline"
-            onClick={() => setShowCreateForm(true)}
-            className="text-green-600 border-green-200 hover:bg-green-50"
-          >
-            <Plus className="mr-2 h-4 w-4" /> Create your first offer
-          </Button>
-        </Card>
-      ) : (
-        <Card className="overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                    Product
-                  </th>
-                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                    Discount
-                  </th>
-                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                    Valid From
-                  </th>
-                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                    Valid To
-                  </th>
-                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-right text-sm font-semibold text-gray-900">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {offers.map((offer) => (
-                  <tr
-                    key={offer.id}
-                    className="hover:bg-gray-50 transition-colors"
-                  >
-                    <td className="px-6 py-4 font-medium text-gray-900">
-                      {offer.product?.name || "Unknown Product"}
-                    </td>
-                    <td className="px-6 py-4 text-gray-900 font-medium">
-                      {offer.discount_percentage}%
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">
-                      {new Date(offer.valid_from).toLocaleDateString()}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">
-                      {new Date(offer.valid_to).toLocaleDateString()}
-                    </td>
-                    <td className="px-6 py-4">
-                      <span
-                        className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${
-                          offer.active
-                            ? "bg-green-100 text-green-800"
-                            : "bg-gray-100 text-gray-800"
-                        }`}
-                      >
-                        {offer.active ? "Active" : "Inactive"}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() =>
-                            handleToggleActive(offer.id, offer.active)
-                          }
-                          className={
-                            offer.active
-                              ? "text-green-600 hover:text-green-700"
-                              : "text-gray-500 hover:text-gray-700"
-                          }
-                          title="Toggle Active"
-                        >
-                          <ToggleLeft size={18} />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleEditClick(offer)}
-                          className="text-blue-600 hover:text-blue-700"
-                          title="Edit"
-                        >
-                          <Edit2 size={18} />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDeleteOffer(offer.id)}
-                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                          title="Delete"
-                        >
-                          <Trash2 size={18} />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+    <TooltipProvider>
+      <div className="space-y-6">
+        {/* ── Header ── */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
+              Special Offers
+            </h1>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              Manage discounts and promotions
+            </p>
           </div>
-        </Card>
-      )}
-    </div>
+          <Button
+            onClick={() => setShowCreateDialog(true)}
+            className="bg-green-600 hover:bg-green-700 h-9"
+          >
+            <Plus size={16} className="mr-2" />
+            Create Offer
+          </Button>
+        </div>
+
+        {/* ── Stat cards ── */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <StatCard
+            title="Total Offers"
+            value={offers.length.toString()}
+            sub="All time"
+            icon={<Tag size={18} className="text-blue-600" />}
+            accent="bg-blue-50"
+          />
+          <StatCard
+            title="Active Offers"
+            value={activeOffers.length.toString()}
+            sub="Currently running"
+            icon={<Sparkles size={18} className="text-green-600" />}
+            accent="bg-green-50"
+          />
+          <StatCard
+            title="Total Discount"
+            value={`${discountTotal.toFixed(1)}%`}
+            sub="Sum across active offers"
+            icon={<Percent size={18} className="text-violet-600" />}
+            accent="bg-violet-50"
+          />
+          <StatCard
+            title="Expired Offers"
+            value={expiredOffers.length.toString()}
+            sub="Past valid_to date"
+            icon={<CalendarRange size={18} className="text-amber-600" />}
+            accent="bg-amber-50"
+          />
+        </div>
+
+        {/* ── Table ── */}
+        {offers.length === 0 ? (
+          <Card className="p-12 text-center border-dashed">
+            <Tag size={36} className="mx-auto text-muted-foreground mb-3" />
+            <p className="font-medium text-gray-700">No offers yet</p>
+            <p className="text-sm text-muted-foreground mt-1 mb-4">
+              Create your first offer to start running promotions.
+            </p>
+            <Button
+              variant="outline"
+              onClick={() => setShowCreateDialog(true)}
+              className="text-green-600 border-green-200 hover:bg-green-50"
+            >
+              <Plus className="mr-2 h-4 w-4" /> Create your first offer
+            </Button>
+          </Card>
+        ) : (
+          <Card className="border shadow-sm overflow-hidden">
+            <CardHeader className="px-6 py-4 border-b bg-gray-50/60">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-semibold text-gray-700">
+                  {offers.length} offer{offers.length !== 1 ? "s" : ""}
+                </CardTitle>
+                <div className="flex gap-1.5">
+                  <Badge
+                    variant="outline"
+                    className="text-xs bg-green-50 text-green-700 border-green-200"
+                  >
+                    {activeOffers.length} active
+                  </Badge>
+                  <Badge
+                    variant="outline"
+                    className="text-xs bg-gray-50 text-gray-600 border-gray-200"
+                  >
+                    {offers.length - activeOffers.length} inactive
+                  </Badge>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-gray-50/40 hover:bg-gray-50/40">
+                    <TableHead className="px-6 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                      Product
+                    </TableHead>
+                    <TableHead className="px-6 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                      Discount
+                    </TableHead>
+                    <TableHead className="px-6 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                      Valid From
+                    </TableHead>
+                    <TableHead className="px-6 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                      Valid To
+                    </TableHead>
+                    <TableHead className="px-6 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                      Status
+                    </TableHead>
+                    <TableHead className="px-6 text-xs font-semibold uppercase tracking-wide text-gray-500 text-right">
+                      Actions
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {offers.map((offer) => {
+                    const isExpired = new Date(offer.valid_to) < new Date();
+                    return (
+                      <TableRow
+                        key={offer.id}
+                        className="hover:bg-gray-50/60 transition-colors group"
+                      >
+                        {/* Product */}
+                        <TableCell className="px-6 py-4 font-medium text-gray-900">
+                          {offer.product?.name || "Unknown Product"}
+                        </TableCell>
+
+                        {/* Discount */}
+                        <TableCell className="px-6 py-4">
+                          <Badge
+                            variant="outline"
+                            className="bg-violet-50 text-violet-700 border-violet-200 font-semibold"
+                          >
+                            {offer.discount_percentage}% off
+                          </Badge>
+                        </TableCell>
+
+                        {/* Valid From */}
+                        <TableCell className="px-6 py-4 text-sm text-gray-600">
+                          {new Date(offer.valid_from).toLocaleDateString(
+                            "en-KE",
+                            {
+                              day: "numeric",
+                              month: "short",
+                              year: "numeric",
+                            },
+                          )}
+                        </TableCell>
+
+                        {/* Valid To */}
+                        <TableCell className="px-6 py-4 text-sm text-gray-600">
+                          <span className={isExpired ? "text-red-500" : ""}>
+                            {new Date(offer.valid_to).toLocaleDateString(
+                              "en-KE",
+                              {
+                                day: "numeric",
+                                month: "short",
+                                year: "numeric",
+                              },
+                            )}
+                          </span>
+                          {isExpired && (
+                            <Badge
+                              variant="outline"
+                              className="ml-2 text-xs bg-red-50 text-red-600 border-red-200"
+                            >
+                              Expired
+                            </Badge>
+                          )}
+                        </TableCell>
+
+                        {/* Status */}
+                        <TableCell className="px-6 py-4">
+                          <Badge
+                            variant="outline"
+                            className={
+                              offer.active
+                                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                : "bg-gray-100 text-gray-500 border-gray-200"
+                            }
+                          >
+                            {offer.active ? "Active" : "Inactive"}
+                          </Badge>
+                        </TableCell>
+
+                        {/* Actions */}
+                        <TableCell className="px-6 py-4 text-right">
+                          <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            {/* Toggle */}
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() =>
+                                    handleToggleActive(offer.id, offer.active)
+                                  }
+                                  className={`h-8 w-8 ${offer.active ? "text-green-600 hover:bg-green-50" : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"}`}
+                                >
+                                  {offer.active ? (
+                                    <ToggleRight size={16} />
+                                  ) : (
+                                    <ToggleLeft size={16} />
+                                  )}
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                {offer.active ? "Deactivate" : "Activate"}
+                              </TooltipContent>
+                            </Tooltip>
+
+                            {/* Edit */}
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => handleEditClick(offer)}
+                                  className="h-8 w-8 text-gray-400 hover:text-blue-600 hover:bg-blue-50"
+                                >
+                                  <Edit2 size={14} />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Edit</TooltipContent>
+                            </Tooltip>
+
+                            {/* Delete */}
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => handleDeleteOffer(offer.id)}
+                                  className="h-8 w-8 text-gray-400 hover:text-red-600 hover:bg-red-50"
+                                >
+                                  <Trash2 size={14} />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Delete</TooltipContent>
+                            </Tooltip>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* ── Create Dialog ── */}
+        <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+          <OfferForm
+            title="Create New Offer"
+            form={createForm}
+            setForm={setCreateForm}
+            products={products}
+            isSubmitting={isSubmitting}
+            showActive={false}
+            onSubmit={handleAddOffer}
+            onCancel={() => setShowCreateDialog(false)}
+            submitLabel="Create Offer"
+            accentClass="bg-green-600 hover:bg-green-700"
+          />
+        </Dialog>
+
+        {/* ── Edit Dialog ── */}
+        <Dialog
+          open={!!editingOffer}
+          onOpenChange={(o) => !o && setEditingOffer(null)}
+        >
+          <OfferForm
+            title="Edit Offer"
+            form={editForm}
+            setForm={setEditForm}
+            products={products}
+            isSubmitting={isSubmitting}
+            showActive={true}
+            onSubmit={handleUpdateOffer}
+            onCancel={() => setEditingOffer(null)}
+            submitLabel="Save Changes"
+            accentClass="bg-blue-600 hover:bg-blue-700"
+          />
+        </Dialog>
+      </div>
+    </TooltipProvider>
   );
 }

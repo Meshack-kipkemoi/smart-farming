@@ -1,10 +1,37 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Card } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Edit2, Trash2, Plus, X, ImageIcon } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Edit2,
+  Trash2,
+  Plus,
+  X,
+  ImageIcon,
+  PackageSearch,
+  AlertTriangle,
+  CheckCircle2,
+  Upload,
+} from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import Image from "next/image";
 
@@ -22,6 +49,58 @@ interface Product {
 
 type FormMode = "add" | "edit" | null;
 
+/* ─── Label helper ───────────────────────────────────────────── */
+function FieldLabel({
+  children,
+  required,
+}: {
+  children: React.ReactNode;
+  required?: boolean;
+}) {
+  return (
+    <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-1.5">
+      {children}
+      {required && <span className="text-red-400 ml-1">*</span>}
+    </label>
+  );
+}
+
+/* ─── Stock Badge ────────────────────────────────────────────── */
+function StockBadge({ product }: { product: Product }) {
+  const isLow = product.stock_quantity < product.low_stock_threshold;
+  return isLow ? (
+    <Badge className="bg-red-50 text-red-600 border-red-200 border gap-1 font-semibold text-[11px]">
+      <AlertTriangle className="h-3 w-3" /> Low Stock
+    </Badge>
+  ) : (
+    <Badge className="bg-emerald-50 text-emerald-600 border-emerald-200 border gap-1 font-semibold text-[11px]">
+      <CheckCircle2 className="h-3 w-3" /> In Stock
+    </Badge>
+  );
+}
+
+/* ─── Table Skeleton ─────────────────────────────────────────── */
+function TableSkeleton() {
+  return (
+    <div className="space-y-3 p-6">
+      {Array.from({ length: 5 }).map((_, i) => (
+        <div key={i} className="flex items-center gap-4">
+          <Skeleton className="h-12 w-12 rounded-xl" />
+          <div className="space-y-2 flex-1">
+            <Skeleton className="h-3.5 w-40" />
+            <Skeleton className="h-3 w-24" />
+          </div>
+          <Skeleton className="h-3.5 w-20" />
+          <Skeleton className="h-3.5 w-16" />
+          <Skeleton className="h-6 w-20 rounded-full" />
+          <Skeleton className="h-8 w-16 rounded-lg" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ─── Main Page ──────────────────────────────────────────────── */
 export default function ProductsPage() {
   const supabase = createClient();
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -29,7 +108,7 @@ export default function ProductsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [formMode, setFormMode] = useState<FormMode>(null);
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
-  const [removeImage, setRemoveImage] = useState(false); // Track if user wants to delete image
+  const [removeImage, setRemoveImage] = useState(false);
 
   const [productForm, setProductForm] = useState({
     name: "",
@@ -96,20 +175,14 @@ export default function ProductsPage() {
     setFormMode("edit");
   };
 
-  const closeForm = () => {
-    resetForm();
-  };
-
-  // Helper to extract storage path from Supabase URL
   const getStoragePathFromUrl = (url: string): string | null => {
     if (!url) return null;
     try {
       const urlObj = new URL(url);
       const pathParts = urlObj.pathname.split("/");
       const bucketIndex = pathParts.indexOf("product-images");
-      if (bucketIndex !== -1 && pathParts[bucketIndex + 1]) {
+      if (bucketIndex !== -1 && pathParts[bucketIndex + 1])
         return pathParts.slice(bucketIndex + 1).join("/");
-      }
       return null;
     } catch {
       return null;
@@ -119,25 +192,21 @@ export default function ProductsPage() {
   const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     let imageUrl: string | null = null;
-
     try {
       if (imageFile) {
         const fileName = `${Date.now()}-${imageFile.name}`;
         const { error } = await supabase.storage
           .from("product-images")
           .upload(fileName, imageFile);
-
         if (error) {
           console.error("Upload error:", error);
           return;
         }
-
         const { data: publicUrlData } = supabase.storage
           .from("product-images")
           .getPublicUrl(fileName);
         imageUrl = publicUrlData.publicUrl;
       }
-
       const response = await fetch("/api/products", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -151,7 +220,6 @@ export default function ProductsPage() {
           image_url: imageUrl,
         }),
       });
-
       if (response.ok) {
         const product = await response.json();
         setProducts([product, ...products]);
@@ -165,59 +233,27 @@ export default function ProductsPage() {
   const handleUpdateProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingProductId) return;
-
     try {
       let newImageUrl: string | null = productForm.image_url || null;
       const oldImageUrl = productForm.image_url;
       const BUCKET = "product-images";
-
-      // Case 1: User selected a new image file (replace existing)
       if (imageFile) {
-        // Delete old image if exists
         if (oldImageUrl) {
           const oldPath = getStoragePathFromUrl(oldImageUrl);
-          if (oldPath) {
-            const { error: deleteError } = await supabase.storage
-              .from(BUCKET)
-              .remove([oldPath]);
-
-            if (deleteError) {
-              console.error("Failed to delete old image:", deleteError);
-            }
-          }
+          if (oldPath) await supabase.storage.from(BUCKET).remove([oldPath]);
         }
-
-        // Upload new image
         const fileName = `${Date.now()}-${imageFile.name}`;
         const { error: uploadError } = await supabase.storage
           .from(BUCKET)
           .upload(fileName, imageFile);
-
-        if (uploadError) {
-          console.error("Upload error:", uploadError);
-          throw uploadError;
-        }
-
+        if (uploadError) throw uploadError;
         const { data } = supabase.storage.from(BUCKET).getPublicUrl(fileName);
         newImageUrl = data.publicUrl;
-      }
-      // Case 2: User clicked "Remove Image" (delete without replacement)
-      else if (removeImage && oldImageUrl) {
+      } else if (removeImage && oldImageUrl) {
         const oldPath = getStoragePathFromUrl(oldImageUrl);
-        if (oldPath) {
-          const { error: deleteError } = await supabase.storage
-            .from(BUCKET)
-            .remove([oldPath]);
-
-          if (deleteError) {
-            console.error("Failed to delete image:", deleteError);
-          }
-        }
-        newImageUrl = null; // Clear the URL
+        if (oldPath) await supabase.storage.from(BUCKET).remove([oldPath]);
+        newImageUrl = null;
       }
-    
-
-      // Send PATCH request
       const response = await fetch(`/api/products/${editingProductId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -228,22 +264,17 @@ export default function ProductsPage() {
           stock_quantity: Number(productForm.stock_quantity) || 0,
           category: productForm.category || null,
           low_stock_threshold: Number(productForm.low_stock_threshold) || 0,
-          image_url: newImageUrl, // null if removed, new URL if replaced, old URL if unchanged
+          image_url: newImageUrl,
         }),
       });
-
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || "Failed to update product");
       }
-
       const updatedProduct = await response.json();
-
-      // Update local state
       setProducts((prev) =>
         prev.map((p) => (p.id === editingProductId ? updatedProduct : p)),
       );
-
       resetForm();
     } catch (error) {
       console.error("Update product failed:", error);
@@ -255,26 +286,16 @@ export default function ProductsPage() {
 
   const handleDeleteProduct = async (productId: string) => {
     if (!confirm("Are you sure you want to delete this product?")) return;
-
     try {
-      // Get product to find image
       const product = products.find((p) => p.id === productId);
-
-      // Delete image from storage if exists
       if (product?.image_url) {
         const path = getStoragePathFromUrl(product.image_url);
-        if (path) {
-          await supabase.storage.from("product-images").remove([path]);
-        }
+        if (path) await supabase.storage.from("product-images").remove([path]);
       }
-
       const response = await fetch(`/api/products/${productId}`, {
         method: "DELETE",
       });
-
-      if (response.ok) {
-        setProducts(products.filter((p) => p.id !== productId));
-      }
+      if (response.ok) setProducts(products.filter((p) => p.id !== productId));
     } catch (error) {
       console.error("Failed to delete product:", error);
     }
@@ -285,279 +306,322 @@ export default function ProductsPage() {
     setImageFile(null);
     setProductForm((prev) => ({ ...prev, image_url: "" }));
   };
-
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
+    if (e.target.files?.[0]) {
       setImageFile(e.target.files[0]);
-      setRemoveImage(false); // Cancel removal if new file selected
+      setRemoveImage(false);
     }
   };
 
-  const getLowStockStatus = (product: Product) => {
-    if (product.stock_quantity < product.low_stock_threshold) {
-      return { color: "text-red-600", label: "Low Stock" };
-    }
-    return { color: "text-green-600", label: "In Stock" };
-  };
-
-  const getFormTitle = () => {
-    if (formMode === "add") return "Add New Product";
-    if (formMode === "edit") return "Edit Product";
-    return "";
-  };
-
-  const getSubmitButtonText = () => {
-    if (formMode === "add") return "Add Product";
-    if (formMode === "edit") return "Update Product";
-    return "";
-  };
-
+  const showCurrentImage =
+    formMode === "edit" && productForm.image_url && !removeImage && !imageFile;
   const handleSubmit =
     formMode === "add" ? handleAddProduct : handleUpdateProduct;
 
-  // Check if we should show current image (editing, has url, not marked for removal, no new file selected)
-  const showCurrentImage =
-    formMode === "edit" && productForm.image_url && !removeImage && !imageFile;
-
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-gray-900">Products</h1>
-        <Button
-          onClick={openAddForm}
-          className="bg-green-600 hover:bg-green-700"
-        >
-          <Plus size={18} className="mr-2" />
-          Add Product
-        </Button>
-      </div>
-
-      {/* Add/Edit Form Modal */}
-      {formMode && (
-        <Card className="p-6 bg-gray-50 border-2 border-green-200">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold text-gray-900">
-              {getFormTitle()}
-            </h2>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={closeForm}
-              className="text-gray-500"
-            >
-              <X size={20} />
-            </Button>
+    <div className="min-h-screen bg-zinc-50/60 px-4 py-8 md:px-8">
+      <div className="mx-auto max-w-7xl space-y-8">
+        {/* ── Header ── */}
+        <div className="flex items-end justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400 mb-1">
+              Inventory
+            </p>
+            <h1 className="text-3xl font-extrabold tracking-tight text-zinc-900">
+              Products
+            </h1>
           </div>
+          <Button
+            onClick={openAddForm}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm gap-2 font-semibold"
+          >
+            <Plus className="h-4 w-4" />
+            Add Product
+          </Button>
+        </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Current Image Preview with Remove Option */}
-            {showCurrentImage && (
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Current Image
-                </label>
-                <div className="flex items-start gap-4">
-                  <div className="relative w-32 h-32 rounded-lg overflow-hidden border border-gray-200">
-                    <Image
-                      src={productForm.image_url}
-                      alt="Current product"
-                      fill
-                      className="object-cover"
+        <Separator className="bg-zinc-200" />
+
+        {/* ── Add / Edit Form ── */}
+        {formMode && (
+          <Card className="border-emerald-200 border-2 shadow-md overflow-hidden">
+            <CardHeader className="bg-emerald-50/60 pb-4 flex flex-row items-start justify-between">
+              <div>
+                <CardTitle className="text-lg font-bold text-zinc-900">
+                  {formMode === "add" ? "Add New Product" : "Edit Product"}
+                </CardTitle>
+                <CardDescription className="text-zinc-500 text-xs mt-1">
+                  {formMode === "add"
+                    ? "Fill in the details below to list a new product."
+                    : "Update the product details below."}
+                </CardDescription>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={resetForm}
+                className="text-zinc-400 hover:text-zinc-700 -mt-1"
+              >
+                <X className="h-5 w-5" />
+              </Button>
+            </CardHeader>
+
+            <CardContent className="pt-6">
+              <form onSubmit={handleSubmit} className="space-y-5">
+                {/* Current Image Preview */}
+                {showCurrentImage && (
+                  <div>
+                    <FieldLabel>Current Image</FieldLabel>
+                    <div className="flex items-start gap-4">
+                      <div className="relative w-28 h-28 rounded-xl overflow-hidden border border-zinc-200 shadow-sm">
+                        <Image
+                          src={productForm.image_url}
+                          alt="Current product"
+                          fill
+                          className="object-cover"
+                        />
+                      </div>
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="sm"
+                        onClick={handleRemoveImageClick}
+                        className="mt-2 gap-1.5 text-xs"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" /> Remove Image
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {removeImage && (
+                  <div className="flex items-center gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-700 text-sm">
+                    <AlertTriangle className="h-4 w-4 shrink-0" />
+                    Image will be removed when you save.
+                  </div>
+                )}
+
+                {/* Name + Category */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <FieldLabel required>Product Name</FieldLabel>
+                    <Input
+                      value={productForm.name}
+                      onChange={(e) =>
+                        setProductForm({ ...productForm, name: e.target.value })
+                      }
+                      placeholder="e.g. Fresh Tomatoes"
+                      required
+                      className="focus-visible:ring-emerald-500"
                     />
                   </div>
+                  <div>
+                    <FieldLabel>Category</FieldLabel>
+                    <Input
+                      value={productForm.category}
+                      onChange={(e) =>
+                        setProductForm({
+                          ...productForm,
+                          category: e.target.value,
+                        })
+                      }
+                      placeholder="e.g. Vegetables"
+                      className="focus-visible:ring-emerald-500"
+                    />
+                  </div>
+                </div>
+
+                {/* Description */}
+                <div>
+                  <FieldLabel>Description</FieldLabel>
+                  <textarea
+                    value={productForm.description}
+                    onChange={(e) =>
+                      setProductForm({
+                        ...productForm,
+                        description: e.target.value,
+                      })
+                    }
+                    placeholder="Short product description..."
+                    rows={3}
+                    className="w-full px-3 py-2 text-sm border border-zinc-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none bg-white text-zinc-900 placeholder:text-zinc-400"
+                  />
+                </div>
+
+                {/* Image Upload */}
+                <div>
+                  <FieldLabel>
+                    {formMode === "edit" && productForm.image_url
+                      ? "Replace Image"
+                      : "Product Image"}
+                  </FieldLabel>
+                  <label
+                    className={`flex flex-col items-center justify-center gap-2 w-full h-28 border-2 border-dashed rounded-xl cursor-pointer transition-colors ${
+                      removeImage
+                        ? "border-zinc-200 bg-zinc-50 opacity-50 cursor-not-allowed"
+                        : "border-zinc-300 hover:border-emerald-400 hover:bg-emerald-50/40"
+                    }`}
+                  >
+                    <Upload className="h-5 w-5 text-zinc-400" />
+                    <span className="text-xs text-zinc-500 font-medium">
+                      {imageFile ? imageFile.name : "Click to upload an image"}
+                    </span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageChange}
+                      disabled={removeImage}
+                      className="hidden"
+                    />
+                  </label>
+                  {imageFile && (
+                    <p className="text-xs text-emerald-600 font-medium mt-1.5">
+                      ✓ {imageFile.name} selected
+                    </p>
+                  )}
+                </div>
+
+                {/* Price, Stock, Threshold */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <FieldLabel required>Price (KES)</FieldLabel>
+                    <Input
+                      type="number"
+                      value={productForm.price}
+                      onChange={(e) =>
+                        setProductForm({
+                          ...productForm,
+                          price: e.target.value,
+                        })
+                      }
+                      step="0.01"
+                      placeholder="0.00"
+                      required
+                      className="focus-visible:ring-emerald-500"
+                    />
+                  </div>
+                  <div>
+                    <FieldLabel required>Stock Qty</FieldLabel>
+                    <Input
+                      type="number"
+                      value={productForm.stock_quantity}
+                      onChange={(e) =>
+                        setProductForm({
+                          ...productForm,
+                          stock_quantity: e.target.value,
+                        })
+                      }
+                      placeholder="0"
+                      required
+                      className="focus-visible:ring-emerald-500"
+                    />
+                  </div>
+                  <div>
+                    <FieldLabel>Low Stock Alert</FieldLabel>
+                    <Input
+                      type="number"
+                      value={productForm.low_stock_threshold}
+                      onChange={(e) =>
+                        setProductForm({
+                          ...productForm,
+                          low_stock_threshold: e.target.value,
+                        })
+                      }
+                      placeholder="10"
+                      className="focus-visible:ring-emerald-500"
+                    />
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex gap-3 pt-2">
+                  <Button
+                    type="submit"
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold gap-2 shadow-sm"
+                  >
+                    {formMode === "add" ? (
+                      <>
+                        <Plus className="h-4 w-4" /> Add Product
+                      </>
+                    ) : (
+                      <>
+                        <Edit2 className="h-4 w-4" /> Update Product
+                      </>
+                    )}
+                  </Button>
                   <Button
                     type="button"
-                    variant="destructive"
-                    size="sm"
-                    onClick={handleRemoveImageClick}
-                    className="mt-0"
+                    variant="outline"
+                    onClick={resetForm}
+                    className="text-zinc-600"
                   >
-                    <Trash2 size={16} className="mr-1" />
-                    Remove Image
+                    Cancel
                   </Button>
                 </div>
-              </div>
-            )}
+              </form>
+            </CardContent>
+          </Card>
+        )}
 
-            {/* Show message if image was removed but not yet saved */}
-            {removeImage && (
-              <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-md text-yellow-800 text-sm">
-                Image will be removed when you click Update Product
-              </div>
-            )}
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Product Name *
-                </label>
-                <Input
-                  type="text"
-                  value={productForm.name}
-                  onChange={(e) =>
-                    setProductForm({ ...productForm, name: e.target.value })
-                  }
-                  placeholder="e.g. Fresh Tomatoes"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Category
-                </label>
-                <Input
-                  type="text"
-                  value={productForm.category}
-                  onChange={(e) =>
-                    setProductForm({ ...productForm, category: e.target.value })
-                  }
-                  placeholder="e.g. Vegetables"
-                />
-              </div>
+        {/* ── Products Table ── */}
+        <Card className="shadow-sm overflow-hidden">
+          <CardHeader className="pb-3 border-b border-zinc-100">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base font-bold text-zinc-900">
+                All Products
+              </CardTitle>
+              <Badge
+                variant="secondary"
+                className="text-xs text-zinc-500 font-medium"
+              >
+                {products.length} item{products.length !== 1 ? "s" : ""}
+              </Badge>
             </div>
+          </CardHeader>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Description
-              </label>
-              <textarea
-                value={productForm.description}
-                onChange={(e) =>
-                  setProductForm({
-                    ...productForm,
-                    description: e.target.value,
-                  })
-                }
-                placeholder="Product description..."
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
-                rows={3}
-              />
+          {isLoading ? (
+            <TableSkeleton />
+          ) : products.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 text-center gap-3">
+              <PackageSearch className="h-10 w-10 text-zinc-300" />
+              <p className="text-zinc-400 font-medium text-sm">
+                No products yet. Add your first one!
+              </p>
             </div>
-
-            {/* File Input - Show if no current image or if replacing */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                {formMode === "edit" && productForm.image_url
-                  ? "Replace Image (optional)"
-                  : "Product Image (optional)"}
-              </label>
-              <Input
-                type="file"
-                accept="image/*"
-                onChange={handleImageChange}
-                disabled={removeImage} // Disable if marked for removal
-              />
-              {imageFile && (
-                <p className="text-sm text-green-600 mt-1">
-                  New image selected: {imageFile.name}
-                </p>
-              )}
-              {removeImage && (
-                <p className="text-sm text-red-600 mt-1">
-                  Current image will be deleted
-                </p>
-              )}
-            </div>
-
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Price (KES) *
-                </label>
-                <Input
-                  type="number"
-                  value={productForm.price}
-                  onChange={(e) =>
-                    setProductForm({ ...productForm, price: e.target.value })
-                  }
-                  step="0.01"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Stock *
-                </label>
-                <Input
-                  type="number"
-                  value={productForm.stock_quantity}
-                  onChange={(e) =>
-                    setProductForm({
-                      ...productForm,
-                      stock_quantity: e.target.value,
-                    })
-                  }
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Low Stock Alert
-                </label>
-                <Input
-                  type="number"
-                  value={productForm.low_stock_threshold}
-                  onChange={(e) =>
-                    setProductForm({
-                      ...productForm,
-                      low_stock_threshold: e.target.value,
-                    })
-                  }
-                />
-              </div>
-            </div>
-
-            <div className="flex gap-2 pt-4">
-              <Button type="submit" className="bg-green-600 hover:bg-green-700">
-                {getSubmitButtonText()}
-              </Button>
-              <Button type="button" variant="outline" onClick={closeForm}>
-                Cancel
-              </Button>
-            </div>
-          </form>
-        </Card>
-      )}
-
-      {/* Products Table */}
-      {isLoading ? (
-        <div className="text-center py-8">Loading...</div>
-      ) : products.length === 0 ? (
-        <Card className="p-8 text-center text-gray-600">No products found</Card>
-      ) : (
-        <Card className="overflow-hidden">
-          <table className="w-full">
-            <thead className="bg-gray-50 border-b">
-              <tr>
-                <th className="px-6 py-3 text-left text-sm font-semibold">
-                  Product
-                </th>
-                <th className="px-6 py-3 text-left text-sm font-semibold">
-                  Category
-                </th>
-                <th className="px-6 py-3 text-left text-sm font-semibold">
-                  Price
-                </th>
-                <th className="px-6 py-3 text-left text-sm font-semibold">
-                  Stock
-                </th>
-                <th className="px-6 py-3 text-left text-sm font-semibold">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-right text-sm font-semibold">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {products.map((product) => {
-                const status = getLowStockStatus(product);
-                return (
-                  <tr key={product.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4">
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-zinc-50 hover:bg-zinc-50">
+                  <TableHead className="text-xs font-semibold uppercase tracking-wider text-zinc-400 pl-6">
+                    Product
+                  </TableHead>
+                  <TableHead className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                    Category
+                  </TableHead>
+                  <TableHead className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                    Price
+                  </TableHead>
+                  <TableHead className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                    Stock
+                  </TableHead>
+                  <TableHead className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                    Status
+                  </TableHead>
+                  <TableHead className="text-xs font-semibold uppercase tracking-wider text-zinc-400 text-right pr-6">
+                    Actions
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {products.map((product) => (
+                  <TableRow
+                    key={product.id}
+                    className="hover:bg-zinc-50/70 transition-colors group"
+                  >
+                    <TableCell className="pl-6 py-4">
                       <div className="flex items-center gap-3">
                         {product.image_url ? (
-                          <div className="relative w-12 h-12 rounded-lg overflow-hidden">
+                          <div className="relative w-11 h-11 rounded-xl overflow-hidden border border-zinc-200 shrink-0">
                             <Image
                               src={product.image_url}
                               alt={product.name}
@@ -566,63 +630,74 @@ export default function ProductsPage() {
                             />
                           </div>
                         ) : (
-                          <div className="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center">
-                            <ImageIcon size={20} className="text-gray-400" />
+                          <div className="w-11 h-11 rounded-xl bg-zinc-100 border border-zinc-200 flex items-center justify-center shrink-0">
+                            <ImageIcon className="h-4 w-4 text-zinc-400" />
                           </div>
                         )}
                         <div>
-                          <p className="font-medium text-gray-900">
+                          <p className="font-semibold text-zinc-900 text-sm">
                             {product.name}
                           </p>
                           {product.description && (
-                            <p className="text-sm text-gray-500">
+                            <p className="text-xs text-zinc-400 mt-0.5 max-w-xs truncate">
                               {product.description}
                             </p>
                           )}
                         </div>
                       </div>
-                    </td>
-                    <td className="px-6 py-4 text-gray-600">
-                      {product.category || "-"}
-                    </td>
-                    <td className="px-6 py-4 font-medium">
+                    </TableCell>
+                    <TableCell>
+                      {product.category ? (
+                        <Badge
+                          variant="secondary"
+                          className="text-xs font-medium text-zinc-600 bg-zinc-100"
+                        >
+                          {product.category}
+                        </Badge>
+                      ) : (
+                        <span className="text-zinc-300 text-sm">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="font-bold text-zinc-900 text-sm">
                       KES {product.price.toLocaleString()}
-                    </td>
-                    <td className="px-6 py-4 font-medium">
-                      {product.stock_quantity}
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={`text-sm font-medium ${status.color}`}>
-                        {status.label}
+                    </TableCell>
+                    <TableCell>
+                      <span
+                        className={`text-sm font-semibold ${product.stock_quantity < product.low_stock_threshold ? "text-red-500" : "text-zinc-700"}`}
+                      >
+                        {product.stock_quantity}
                       </span>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex justify-end gap-2">
+                    </TableCell>
+                    <TableCell>
+                      <StockBadge product={product} />
+                    </TableCell>
+                    <TableCell className="text-right pr-6">
+                      <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         <Button
                           variant="ghost"
-                          size="sm"
+                          size="icon"
                           onClick={() => openEditForm(product)}
-                          className="text-blue-600"
+                          className="h-8 w-8 text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg"
                         >
-                          <Edit2 size={18} />
+                          <Edit2 className="h-4 w-4" />
                         </Button>
                         <Button
                           variant="ghost"
-                          size="sm"
+                          size="icon"
                           onClick={() => handleDeleteProduct(product.id)}
-                          className="text-red-600"
+                          className="h-8 w-8 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
                         >
-                          <Trash2 size={18} />
+                          <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </Card>
-      )}
+      </div>
     </div>
   );
 }

@@ -1,11 +1,32 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Edit2, AlertTriangle, Loader2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Edit2,
+  AlertTriangle,
+  Loader2,
+  Package,
+  PackageSearch,
+  TrendingDown,
+  Banknote,
+  CheckCircle2,
+} from "lucide-react";
 import { toast } from "sonner";
 import EditInventoryModal from "@/app/dashboard/inventory/EditInventoryModal";
+
 interface Product {
   id: string;
   name: string;
@@ -14,6 +35,78 @@ interface Product {
   price: number;
 }
 
+/* ─── Summary stat card ──────────────────────────────────────── */
+function SummaryCard({
+  label,
+  value,
+  icon,
+  accentClass,
+  borderAccent,
+}: {
+  label: string;
+  value: string | number;
+  icon: React.ReactNode;
+  accentClass: string;
+  borderAccent: string;
+}) {
+  return (
+    <Card
+      className={`relative overflow-hidden border-l-4 ${borderAccent} shadow-sm hover:shadow-md transition-shadow duration-200`}
+    >
+      <div
+        className={`absolute -right-6 -top-6 h-24 w-24 rounded-full opacity-10 ${accentClass.split(" ")[0]}`}
+      />
+      <CardHeader className="pb-2">
+        <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">
+          {label}
+        </p>
+      </CardHeader>
+      <CardContent className="flex items-end justify-between gap-2">
+        <p className="text-3xl font-extrabold tracking-tight text-zinc-900">
+          {value}
+        </p>
+        <span
+          className={`flex h-10 w-10 items-center justify-center rounded-xl ${accentClass}`}
+        >
+          {icon}
+        </span>
+      </CardContent>
+    </Card>
+  );
+}
+
+/* ─── Table skeleton ─────────────────────────────────────────── */
+function TableSkeleton() {
+  return (
+    <div className="space-y-3 p-6">
+      {Array.from({ length: 6 }).map((_, i) => (
+        <div key={i} className="flex items-center gap-4">
+          <Skeleton className="h-4 w-40" />
+          <Skeleton className="h-4 w-16" />
+          <Skeleton className="h-4 w-16" />
+          <Skeleton className="h-4 w-24" />
+          <Skeleton className="h-6 w-20 rounded-full" />
+          <Skeleton className="h-8 w-16 rounded-lg ml-auto" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ─── Stock badge ────────────────────────────────────────────── */
+function StockBadge({ isLow }: { isLow: boolean }) {
+  return isLow ? (
+    <Badge className="bg-red-50 text-red-600 border border-red-200 gap-1 font-semibold text-[11px]">
+      <AlertTriangle className="h-3 w-3" /> Low Stock
+    </Badge>
+  ) : (
+    <Badge className="bg-emerald-50 text-emerald-600 border border-emerald-200 gap-1 font-semibold text-[11px]">
+      <CheckCircle2 className="h-3 w-3" /> In Stock
+    </Badge>
+  );
+}
+
+/* ─── Page ───────────────────────────────────────────────────── */
 export default function InventoryPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -50,14 +143,11 @@ export default function InventoryPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(values),
       });
-
       const data = await response.json();
-
       if (!response.ok) {
         toast.error(data.error || "Failed to update inventory.");
         return;
       }
-
       const productName = products.find((p) => p.id === productId)?.name;
       setProducts(
         products.map((p) => (p.id === productId ? { ...p, ...values } : p)),
@@ -73,160 +163,191 @@ export default function InventoryPage() {
   const lowStockProducts = products.filter(
     (p) => p.stock_quantity < p.low_stock_threshold,
   );
-
   const totalValue = products.reduce(
     (sum, p) => sum + p.stock_quantity * p.price,
     0,
   );
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-3xl font-bold text-gray-900">Inventory Management</h1>
-
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="p-6">
-          <p className="text-gray-600 text-sm font-medium">Total Products</p>
-          <p className="text-3xl font-bold text-gray-900 mt-2">
-            {products.length}
-          </p>
-        </Card>
-        <Card className="p-6">
-          <p className="text-gray-600 text-sm font-medium">Low Stock Items</p>
-          <p className="text-3xl font-bold text-orange-600 mt-2">
-            {lowStockProducts.length}
-          </p>
-        </Card>
-        <Card className="p-6">
-          <p className="text-gray-600 text-sm font-medium">
-            Total Inventory Value
-          </p>
-          <p className="text-3xl font-bold text-gray-900 mt-2">
-            KES {totalValue.toLocaleString()}
-          </p>
-        </Card>
-      </div>
-
-      {/* Low Stock Alerts */}
-      {lowStockProducts.length > 0 && (
-        <Card className="p-6 bg-orange-50 border border-orange-200">
-          <div className="flex items-start gap-4">
-            <AlertTriangle
-              className="text-orange-600 flex-shrink-0 mt-1"
-              size={24}
-            />
-            <div>
-              <h2 className="font-semibold text-orange-900">Low Stock Alert</h2>
-              <p className="text-orange-800 text-sm mt-1">
-                {lowStockProducts.length} product(s) are below the low stock
-                threshold:
-              </p>
-              <ul className="mt-2 space-y-1 text-sm text-orange-800">
-                {lowStockProducts.map((p) => (
-                  <li key={p.id}>
-                    • {p.name} — {p.stock_quantity} units (threshold:{" "}
-                    {p.low_stock_threshold})
-                  </li>
-                ))}
-              </ul>
-            </div>
+    <div className="min-h-screen bg-zinc-50/60 px-4 py-8 md:px-8">
+      <div className="mx-auto max-w-7xl space-y-8">
+        {/* ── Header ── */}
+        <div className="flex items-end justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400 mb-1">
+              Stock
+            </p>
+            <h1 className="text-3xl font-extrabold tracking-tight text-zinc-900">
+              Inventory
+            </h1>
           </div>
-        </Card>
-      )}
-
-      {isLoading ? (
-        <div className="flex justify-center items-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <span className="ml-3 text-muted-foreground">
-            Loading inventory...
-          </span>
+          <Badge
+            variant="outline"
+            className="flex items-center gap-1.5 border-zinc-200 text-zinc-500 text-xs font-medium"
+          >
+            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+            {products.length} products tracked
+          </Badge>
         </div>
-      ) : products.length === 0 ? (
-        <Card className="p-8 text-center text-gray-600">
-          No products in inventory
-        </Card>
-      ) : (
-        <Card className="overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                    Product Name
-                  </th>
-                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                    Current Stock
-                  </th>
-                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                    Low Stock Threshold
-                  </th>
-                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                    Value (KES)
-                  </th>
-                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-right text-sm font-semibold text-gray-900">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
+
+        <Separator className="bg-zinc-200" />
+
+        {/* ── Summary Cards ── */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+          <SummaryCard
+            label="Total Products"
+            value={products.length}
+            icon={<Package className="h-5 w-5" />}
+            accentClass="bg-violet-50 text-violet-600"
+            borderAccent="border-l-violet-500"
+          />
+          <SummaryCard
+            label="Low Stock Items"
+            value={lowStockProducts.length}
+            icon={<TrendingDown className="h-5 w-5" />}
+            accentClass="bg-orange-50 text-orange-500"
+            borderAccent="border-l-orange-500"
+          />
+          <SummaryCard
+            label="Total Inventory Value"
+            value={`KES ${totalValue.toLocaleString()}`}
+            icon={<Banknote className="h-5 w-5" />}
+            accentClass="bg-emerald-50 text-emerald-600"
+            borderAccent="border-l-emerald-500"
+          />
+        </div>
+
+        {/* ── Low Stock Alert Banner ── */}
+        {lowStockProducts.length > 0 && (
+          <Card className="border-orange-200 border bg-orange-50/60 shadow-sm overflow-hidden">
+            <CardContent className="pt-5 pb-5">
+              <div className="flex items-start gap-4">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-orange-100 shrink-0 mt-0.5">
+                  <AlertTriangle className="h-5 w-5 text-orange-600" />
+                </div>
+                <div>
+                  <p className="font-bold text-orange-900 text-sm">
+                    {lowStockProducts.length} product
+                    {lowStockProducts.length > 1 ? "s" : ""} below threshold
+                  </p>
+                  <p className="text-orange-700 text-xs mt-0.5 mb-3">
+                    Restock soon to avoid running out.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {lowStockProducts.map((p) => (
+                      <span
+                        key={p.id}
+                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-orange-100 text-orange-800 text-xs font-semibold border border-orange-200"
+                      >
+                        {p.name}
+                        <span className="text-orange-500 font-bold">·</span>
+                        {p.stock_quantity} / {p.low_stock_threshold} units
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* ── Inventory Table ── */}
+        <Card className="shadow-sm overflow-hidden">
+          <CardHeader className="pb-3 border-b border-zinc-100">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base font-bold text-zinc-900">
+                Stock Levels
+              </CardTitle>
+              <Badge
+                variant="secondary"
+                className="text-xs text-zinc-500 font-medium"
+              >
+                {products.length} item{products.length !== 1 ? "s" : ""}
+              </Badge>
+            </div>
+          </CardHeader>
+
+          {isLoading ? (
+            <TableSkeleton />
+          ) : products.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 gap-3 text-center">
+              <PackageSearch className="h-10 w-10 text-zinc-300" />
+              <p className="text-zinc-400 text-sm font-medium">
+                No products in inventory yet.
+              </p>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-zinc-50 hover:bg-zinc-50">
+                  {[
+                    "Product Name",
+                    "Current Stock",
+                    "Threshold",
+                    "Value (KES)",
+                    "Status",
+                    "",
+                  ].map((h) => (
+                    <TableHead
+                      key={h}
+                      className={`text-xs font-semibold uppercase tracking-wider text-zinc-400 ${h === "" ? "text-right pr-6" : "pl-6"}`}
+                    >
+                      {h}
+                    </TableHead>
+                  ))}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {products.map((product) => {
-                  const isLowStock =
+                  const isLow =
                     product.stock_quantity < product.low_stock_threshold;
                   return (
-                    <tr
+                    <TableRow
                       key={product.id}
-                      className="hover:bg-gray-50 transition-colors"
+                      className="hover:bg-zinc-50/70 transition-colors group"
                     >
-                      <td className="px-6 py-4 font-medium text-gray-900">
+                      <TableCell className="pl-6 py-4 font-semibold text-zinc-900 text-sm">
                         {product.name}
-                      </td>
-                      <td className="px-6 py-4 text-gray-900 font-medium">
-                        {product.stock_quantity}
-                      </td>
-                      <td className="px-6 py-4 text-gray-900">
+                      </TableCell>
+                      <TableCell className="py-4">
+                        <span
+                          className={`text-sm font-bold ${isLow ? "text-red-500" : "text-zinc-800"}`}
+                        >
+                          {product.stock_quantity}
+                        </span>
+                      </TableCell>
+                      <TableCell className="py-4 text-zinc-500 text-sm">
                         {product.low_stock_threshold}
-                      </td>
-                      <td className="px-6 py-4 text-gray-900 font-medium">
+                      </TableCell>
+                      <TableCell className="py-4 font-semibold text-zinc-900 text-sm">
                         KES{" "}
                         {(
                           product.stock_quantity * product.price
                         ).toLocaleString()}
-                      </td>
-                      <td className="px-6 py-4">
-                        <span
-                          className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${
-                            isLowStock
-                              ? "bg-red-100 text-red-800"
-                              : "bg-green-100 text-green-800"
-                          }`}
-                        >
-                          {isLowStock ? "Low Stock" : "In Stock"}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-right">
+                      </TableCell>
+                      <TableCell className="py-4">
+                        <StockBadge isLow={isLow} />
+                      </TableCell>
+                      <TableCell className="py-4 pr-6 text-right">
                         <Button
                           variant="ghost"
                           size="sm"
                           onClick={() => setEditingProduct(product)}
-                          className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                          className="h-8 gap-1.5 text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg text-xs font-semibold opacity-0 group-hover:opacity-100 transition-opacity"
                         >
-                          <Edit2 size={16} className="mr-1.5" />
+                          <Edit2 className="h-3.5 w-3.5" />
                           Edit
                         </Button>
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   );
                 })}
-              </tbody>
-            </table>
-          </div>
+              </TableBody>
+            </Table>
+          )}
         </Card>
-      )}
+      </div>
 
-      {/* Edit Modal — rendered at root level so it overlays everything */}
       {editingProduct && (
         <EditInventoryModal
           product={editingProduct}

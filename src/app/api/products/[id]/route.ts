@@ -1,16 +1,13 @@
 // app/api/products/[id]/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!;
-const supabase = createClient(supabaseUrl, supabaseKey);
+import { createClient } from "@/lib/supabase/server";
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
+    const supabase = await createClient();
     const { id } = await params;
     const { data: product, error } = await supabase
       .from("products")
@@ -31,10 +28,11 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  context: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const { id } = await context.params;
+    const supabase = await createClient();
+    const { id } = await params;
     const body = await request.json();
 
     // ✅ Build update object with only fields that were sent
@@ -81,6 +79,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
+    const supabase = await createClient();
     const { id } = await params;
 
     // Get existing image to delete from storage

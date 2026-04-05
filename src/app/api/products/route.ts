@@ -1,13 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!;
-
-const supabase = createClient(supabaseUrl, supabaseServiceKey);
+import { createClient } from "@/lib/supabase/server";
 
 export async function GET() {
   try {
+    const supabase = await createClient();
     const { data: products, error } = await supabase
       .from("products")
       .select("*")
@@ -29,6 +25,7 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
+    const supabase = await createClient();
     const body = await request.json();
     const {
       name,
